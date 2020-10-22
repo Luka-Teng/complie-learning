@@ -9,12 +9,12 @@ export type TokenRuleType = {
   type: string
   // 表示是否将解析结果计入token流中
   skip?: boolean
-  match: RegExp | ((input: string) => string | null)
+  match: RegExp | ((input: string, originInput: string) => string | null)
 }
 
 export type TokenRuleListType = TokenRuleType[]
 
-const match = (input: string, ruleList: TokenRuleListType) => {
+const match = (input: string, originInput: string, ruleList: TokenRuleListType) => {
   for (let rule of ruleList) {
     let match: any = null
 
@@ -24,7 +24,7 @@ const match = (input: string, ruleList: TokenRuleListType) => {
     }
 
     if (rule.match instanceof Function) {
-      match = rule.match(input)
+      match = rule.match(input, originInput)
     }
 
     if (match) {
@@ -44,7 +44,7 @@ const match = (input: string, ruleList: TokenRuleListType) => {
  */
 export const tokenize = (input: string, ruleList: TokenRuleListType) => {
   let offset = 0
-  let matchToken: any = match(input.slice(offset), ruleList)
+  let matchToken: any = match(input.slice(offset), input, ruleList)
   const tokens: TokenType[] = []
 
   // 初始token
@@ -65,7 +65,7 @@ export const tokenize = (input: string, ruleList: TokenRuleListType) => {
       })
     }
     offset += matchToken.match.length
-    matchToken = match(input.slice(offset), ruleList)
+    matchToken = match(input.slice(offset), input, ruleList)
   }
 
   // 结尾token

@@ -56,7 +56,7 @@ export const tokenRuleList: TokenRuleListType = [
  * ChemStatement = ChemExpr | MathBlockStatement ｜ MathDollarStatement
  * ChemBlockStatement = '{' , ChemStatements , '}'
  *
- * ChemExpr = ChemFracExpr | ChemArrowExpr | chemScriptExpr | chemCondenseExpr | chemFloatExpr | chemBondExpr | chemEzfracExpr
+ * ChemExpr = ChemFracExpr | ChemArrowExpr | chemScriptExpr | chemCondenseExpr | chemFloatExpr | chemBondExpr | chemEzfracExpr ｜ chemLiteralExpr
  * ChemBracketStatement = '[' , ChemStatements , ']'
  * 
  * 化学的frac表达式
@@ -73,16 +73,19 @@ export const tokenRuleList: TokenRuleListType = [
  * chemSupsubscriptExpr = chemSupscriptExpr, chemSubscriptExpr
  * 
  * 化学的沉淀符号
- * ChemCondenseExpr = ('token-^' | 'token-space'), 'v', ('token-$' | 'token-space')
+ * ChemCondenseExpr = 'token-space', 'v', 'token-space'
  * 
  * 化学的上浮符号
- * ChemFloatExpr = ('token-^' | 'token-space'), '^', ('token-$' | 'token-space')
+ * ChemFloatExpr = 'token-space', '^', 'token-space'
  * 
  * 化学的连接符号
  * chemBondExpr = '#' ｜ '\bond', '{', '-' | '=' | '#' | '1' | '2' | '3' | '~' | '~-' | '~--' | '~=' | '-~-' | '...' | '....' | '->' | '<-','}'
  * 
  * 简易化学分式
  * chemEzfracExpr = ['token-char-num'], '/', ['token-char-num']
+ * 
+ * 化学的普通文本
+ * chemLiteralExpr = {char}
  *
  * 数学相关语法
  * MathBlockStatement = '{' , MathStatements , '}'
@@ -101,6 +104,7 @@ const parse = (input: string) => {
   let index = 0
 
   const castError = (position?: number) => {
+    console.log(tokens[index])
     throw new Error(`parsing error: position ${position || tokens[index - 1].start}`)
   }
 
@@ -202,7 +206,7 @@ const parse = (input: string) => {
   }
 
   const readStatement = () => {
-    return orRead(readExpr, readArrowExpr)
+    return orRead(readExpr, readArrowExpr, readCondenseExpr, readFloatExpr)
   }
 
   const readExpr = () => {
@@ -245,6 +249,30 @@ const parse = (input: string) => {
       const child2 = existRead(readBracketStatement)
       child2 && node.children.push(child2)
     }
+
+    return node
+  }
+
+  const readCondenseExpr = () => {
+    const node: any = {
+      type: 'condenseCommand'
+    }
+
+    readToken('space')
+    readChar('v')
+    readToken('space')
+
+    return node
+  }
+
+  const readFloatExpr = () => {
+    const node: any = {
+      type: 'floatCommand'
+    }
+    
+    readToken('space')
+    readToken('supscript')
+    readToken('space')
 
     return node
   }
@@ -300,5 +328,4 @@ const parse = (input: string) => {
   return readGrammar()
 }
 
-console.log(JSON.stringify(parse('\\frac 1 {\\frac 12}->[\\frac12]')))
-
+console.log(JSON.stringify(parse('  ->[\\frac12 v ]')))
