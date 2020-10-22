@@ -102,10 +102,10 @@ const parse = (input: string) => {
   const tokens = tokenize(input, tokenRuleList)
   const tokensLength = tokens.length
   let index = 0
+  let longestIndex = 0
 
-  const castError = (position?: number) => {
-    console.log(tokens[index])
-    throw new Error(`parsing error: position ${position || tokens[index - 1].start}`)
+  const castError = () => {
+    throw new Error(`parsing error: position ${tokens[longestIndex].start}`)
   }
 
   // 预读下一个token
@@ -119,6 +119,10 @@ const parse = (input: string) => {
       return null
     }
     const readToken = tokens[index]
+
+    if (index > longestIndex) {
+      longestIndex = index
+    }
     index++
     return readToken
   }
@@ -328,4 +332,4 @@ const parse = (input: string) => {
   return readGrammar()
 }
 
-console.log(JSON.stringify(parse('  ->[\\frac12 v ]')))
+console.log(JSON.stringify(parse('  ->[\\frac12 v]')))
