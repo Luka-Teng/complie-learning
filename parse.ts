@@ -53,10 +53,10 @@ export const tokenRuleList: TokenRuleListType = [
  * 
  * Grammar = 'token-^', ChemStatements, 'token-$'
  * ChemStatements = {[ ChemStatement ]}
- * ChemStatement = ChemExpr | MathBlockStatement ｜ MathDollarStatement
+ * ChemStatement = ChemExpr | MathBlockStatement ｜ MathDollarStatement ｜ chemUnknown
  * ChemBlockStatement = '{' , ChemStatements , '}'
  *
- * ChemExpr = ChemFracExpr | ChemArrowExpr | chemScriptExpr | chemCondenseExpr | chemFloatExpr | chemBondExpr | chemEzfracExpr ｜ chemLiteralExpr
+ * ChemExpr = ChemFracExpr | ChemArrowExpr | chemScriptExpr | chemCondenseExpr | chemFloatExpr | chemBondExpr | chemEzfracExpr
  * ChemBracketStatement = '[' , ChemStatements , ']'
  * 
  * 化学的frac表达式
@@ -82,19 +82,19 @@ export const tokenRuleList: TokenRuleListType = [
  * chemBondExpr = '#' ｜ '\bond', '{', '-' | '=' | '#' | '1' | '2' | '3' | '~' | '~-' | '~--' | '~=' | '-~-' | '...' | '....' | '->' | '<-','}'
  * 
  * 简易化学分式
- * chemEzfracExpr = ['token-char-num'], '/', ['token-char-num']
+ * chemEzfracExpr = {'token-char-num'}, '/', {'token-char-num'}
  * 
- * 化学的普通文本
- * chemLiteralExpr = {char}
+ * 化学的未知文本
+ * chemUnknown = 无法匹配 ChemExpr | MathBlockStatement ｜ MathDollarStatement 的其他命令
  *
  * 数学相关语法
  * MathBlockStatement = '{' , MathStatements , '}'
- * MathStatements = MathStatement*
+ * MathStatements = {[MathStatement]}
  * -表示except
- * MathStatement = 'allTokens' -( '{' | '}' ) | MathBlockStatement
+ * MathStatement = {['allTokens' -( '{' | '}' )]} | MathBlockStatement
  * 
  * MathDollarStatement = '$' , MathDollarStatements , '$'
- * MathDollarStatements = {'allTokens' -'$'}
+ * MathDollarStatements = {['allTokens' -'$']}
  */
 
 // 语法分析器
@@ -109,8 +109,8 @@ const parse = (input: string) => {
   }
 
   // 预读下一个token
-  const peek = () => {
-    return tokens[index];
+  const peek = (step: number = 0) => {
+    return tokens[index + step];
   }
 
   // 消费下一个token
@@ -134,23 +134,23 @@ const parse = (input: string) => {
    * 全部出错则表示Expr出错
    */
   const orRead = (...readings: Function[]) => {
-    let token: any = null
+    let node: any = null
     const currentIndex = index
 
     for (let reading of readings) {
       try {
-        token = reading()
+        node = reading()
         break
       } catch (e) {
         index = currentIndex
       }
     }
 
-    if (token === null) {
+    if (node === null) {
       castError()
     }
 
-    return token
+    return node
   }
 
   /**
@@ -172,19 +172,27 @@ const parse = (input: string) => {
 
   /**
    * {[Expr]}, 表示Expr出现0次或多次
+   * 对unknown进行特殊处理, 代优化
    */
   const multiRead = (reading) => {
-    const tokens: any[] = []
+    const nodes: any[] = []
     let currentIndex = index;
     try {
       while (index < tokensLength) {
-        tokens.push(reading())
+        const node = reading()
+        const prevNode = nodes[nodes.length - 1]
+
+        if (node.type === 'unknown' && prevNode && prevNode.type === 'unknown') {
+          prevNode.value += node.value
+        } else {
+          nodes.push(node)
+        }
         currentIndex = index
       }
     } catch (e) {
       index = currentIndex
     }
-    return tokens
+    return nodes
   }
   
   // 消耗空格
@@ -205,16 +213,36 @@ const parse = (input: string) => {
     return node
   }
 
-  const readStatements = () => {    
-    return multiRead(readStatement)
+  const readStatements = (unAllowTokens: [string, string?][] = []) => {    
+    return multiRead(() => readStatement(unAllowTokens))
   }
 
-  const readStatement = () => {
-    return orRead(readExpr, readArrowExpr, readCondenseExpr, readFloatExpr)
+  const readStatement = (unAllowTokens: [string, string?][] = []) => {
+    return orRead(readExpr, readMathBlockStatement, readMathDollarStatement, () => readUnknown(unAllowTokens))
   }
 
   const readExpr = () => {
-    return orRead(readFracExpr)
+    return orRead(readFracExpr, readArrowExpr, readCondenseExpr, readFloatExpr, readBondExpr, readEzFracExpr)
+  }
+
+  /**
+   * 读取无法识别的token
+   * 这是一个保底策略，但是并不是所有的无法识别token都要被打入unknown
+   * 需要部分token无法进入，以此保证不会把外层表达式的后缀消耗掉
+   */
+  const readUnknown = (unAllowTokens: [string, string?][] = []) => {
+    const token = peek()
+    unAllowTokens.push(['^'], ['$'])
+
+    if (token && unAllowTokens.every(t => t[0] !== token.type || t[1] && t[1] !== token.match)) {
+      read()
+      return {
+        type: 'unknown',
+        value: token.match
+      }
+    } else {
+      return castError()
+    }
   }
 
   const readFracExpr = () => {
@@ -281,6 +309,78 @@ const parse = (input: string) => {
     return node
   }
 
+  const readBondExpr = () => {
+    const readBoundCommand = () => {
+      const node: any = {
+        type: 'bondCommand',
+        value: ''
+      }
+      consumeSpace()
+      readToken('command', '\\bond')
+      readToken('parentheses', '{')
+
+      const genReadings = (strs: string[]) => {
+        return strs.map(str => () => readString(str))
+      }
+
+      const value = orRead(...genReadings([
+        '....',
+        '...',
+        '-~-',
+        '~--',
+        '->',
+        '<-',
+        '~=',
+        '~-',
+        '~',
+        '3',
+        '2',
+        '1',
+        '#',
+        '=',
+        '-'
+      ]))
+
+      node.value = value
+      readToken('parentheses', '}')
+      return node
+    }
+
+    const readBoundSymbol = () => {
+      const node: any = {
+        type: 'bond',
+        value: '#'
+      }
+
+      readToken('char', '#')
+      return node
+    }
+
+    return orRead(readBoundCommand, readBoundSymbol)
+  }
+  
+  const readEzFracExpr = () => {
+    const node: any = {
+      type: 'ezFracCommand',
+      children: []
+    }
+
+    consumeSpace()
+    const child1 = multiRead(readNum).join('')
+
+    if (child1 !== '') {
+      node.children.push(child1)
+      readChar('/')
+      const child2 = multiRead(readNum).join('')
+      if (child2 !== '') {
+        node.children.push(child2)
+        return node
+      }
+    }
+
+    castError()
+  }
+
   const readToken = (type: string, match?: string) => {
     const token = read()
     if (!token || token.type !== type || (match && token.match !== match)) {
@@ -293,6 +393,24 @@ const parse = (input: string) => {
     return readToken('char', char)
   }
 
+  const readString = (str: string) => {
+    let res = ''
+    
+    for (let char of str) {
+      res += readToken('char', char)
+    }
+
+    return res
+  }
+
+  const readNum = () => {
+    const token = read()
+    if (!token || token.type !== 'char' || [0,1,2,3,4,5,6,7,8,9].indexOf(parseInt(token.match)) < 0) {
+      castError()
+    }
+    return token?.match
+  }
+
   // 读取{...}
   const readBlockStatement = () => {
     const node: any = {
@@ -303,7 +421,7 @@ const parse = (input: string) => {
     readToken('parentheses', '{')
     consumeSpace()
 
-    node.statements = readStatements()
+    node.statements = readStatements([['parentheses', '}']])
 
     consumeSpace()
     readToken('parentheses', '}')
@@ -320,11 +438,55 @@ const parse = (input: string) => {
     
     readToken('bracket', '[')
     consumeSpace()
-
-    node.statements = readStatements()
-
+    node.statements = readStatements([['bracket', ']']])
     consumeSpace()
     readToken('bracket', ']')
+    return node
+  }
+
+  const readMathBlockStatement = () => {
+    const node: any = {
+      type: 'mathBlockStatement',
+      statements: []
+    }
+
+    consumeSpace()
+    readToken('parentheses', '{')
+    consumeSpace()
+
+    node.statements = readMathStatements()
+
+    consumeSpace()
+    readToken('parentheses', '}')
+
+    return node
+  }
+
+  const readMathStatements = () => {
+    return multiRead(readMathStatement)
+  }
+
+  const readMathStatement = () => {
+    return orRead(
+      () => readUnknown([['parentheses', '{'], ['parentheses', '}']]),
+      readMathBlockStatement
+    )
+  }
+
+  const readMathDollarStatement = () => {
+    const node: any = {
+      type: 'mathDollarStatement',
+      statements: []
+    }
+
+    consumeSpace()
+    readChar('$')
+    consumeSpace()
+
+    node.value = multiRead(() => readUnknown([['char', '$']])).map(node => node.value).join('')
+
+    consumeSpace()
+    readChar('$')
 
     return node
   }
@@ -332,4 +494,4 @@ const parse = (input: string) => {
   return readGrammar()
 }
 
-console.log(JSON.stringify(parse('  ->[\\frac12 v]')))
+console.log(JSON.stringify(parse('\\frac12 \\ce{1213\\frac12}->[1][2]')))

@@ -68,6 +68,10 @@ export const tokenize = (input: string, ruleList: TokenRuleListType) => {
     matchToken = match(input.slice(offset), input, ruleList)
   }
 
+  if (offset < input.length) {
+    throw new Error(`Tokenize error: position ${offset}`)
+  }
+
   // 结尾token
   tokens.push({
     type: '$',
