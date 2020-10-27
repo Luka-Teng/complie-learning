@@ -51,6 +51,15 @@ export const tokenRuleList: TokenRuleListType = [
 /**
  * 化学latex的语法规则
  * 
+ * 符号含义
+ * []: 一次或零次
+ * {}: 一次或多次
+ * {[]}: 零次或多次
+ * n * Expr: n个Expr
+ * -: 除了/非
+ * ,: 连接符号
+ * |: 或
+ * 
  * Grammar = 'token-^', ChemStatements, 'token-$'
  * ChemStatements = {[ ChemStatement ]}
  * ChemStatement = ChemExpr | MathBlockStatement ｜ MathDollarStatement ｜ chemUnknown
@@ -66,9 +75,9 @@ export const tokenRuleList: TokenRuleListType = [
  * ChemArrowExpr = 'token-arrow' , 2 * [ChemBracketStatement]
  * 
  * 化学的上下标表达式 todo...
- * ChemScriptExpr = chemSubscriptExpr | chemSupscriptExpr | chemSubsupscriptExpr | chemSupsubscriptExpr
- * chemSubscriptExpr = '_', ({'token-num'} | 'token-char' | MathDollarStatement | MathBlockStatement)
- * chemSupscriptExpr = '^', ({'token-num'} | 'token-char' | MathDollarStatement | MathBlockStatement)
+ * ChemScriptExpr =  chemSubsupscriptExpr | chemSupsubscriptExpr | chemSubscriptExpr | chemSupscriptExpr
+ * chemSubscriptExpr = '_', ({'token-num'} | 'token-space' | 'token-char' | MathBlockStatement)
+ * chemSupscriptExpr = '^', ({'token-num'} | 'token-space' | 'token-char' | MathBlockStatement)
  * chemSubsupscriptExpr = chemSubscriptExpr, chemSupscriptExpr
  * chemSupsubscriptExpr = chemSupscriptExpr, chemSubscriptExpr
  * 
@@ -104,8 +113,18 @@ const parse = (input: string) => {
   let index = 0
   let longestIndex = 0
 
-  const castError = () => {
-    throw new Error(`parsing error: position ${tokens[longestIndex].start}`)
+  /**
+   * @param { boolean } allowBacktracking 表示发生错误是否允许回溯
+   */
+  const castError = (msg = '') => {
+    const newMsg = msg !== '' ? `parsing error in ${tokens[index].end}: ${msg}` : `parsing error: position ${tokens[longestIndex].start}`
+    const error = new Error(newMsg)
+
+    if (msg) {
+      error.name = 'dead'
+    }
+
+    throw error
   }
 
   // 预读下一个token
@@ -142,6 +161,9 @@ const parse = (input: string) => {
         node = reading()
         break
       } catch (e) {
+        if (e.name === 'dead') {
+          throw e
+        }
         index = currentIndex
       }
     }
@@ -171,10 +193,11 @@ const parse = (input: string) => {
   }
 
   /**
-   * {[Expr]}, 表示Expr出现0次或多次
-   * 对unknown进行特殊处理, 代优化
+   * allowEmpty = true, {[Expr]}, 表示Expr出现0次或多次
+   * allowEmpty = false, {Expr}, 表示Expr出现多次
+   * 对unknown进行特殊处理, 待优化
    */
-  const multiRead = (reading) => {
+  const multiRead = (reading, allowEmpty: boolean = true) => {
     const nodes: any[] = []
     let currentIndex = index;
     try {
@@ -191,6 +214,12 @@ const parse = (input: string) => {
       }
     } catch (e) {
       index = currentIndex
+      if (e.name === 'dead') {
+        throw e
+      }
+      if (!allowEmpty && nodes.length === 0) {
+        castError()
+      }
     }
     return nodes
   }
@@ -198,7 +227,7 @@ const parse = (input: string) => {
   // 消耗空格
   const consumeSpace = () => {
     const token = peek()
-    if (token.type === 'space') {
+    if (token && token.type === 'space') {
       read()
     }
   }
@@ -218,11 +247,22 @@ const parse = (input: string) => {
   }
 
   const readStatement = (unAllowTokens: [string, string?][] = []) => {
-    return orRead(readExpr, readMathBlockStatement, readMathDollarStatement, () => readUnknown(unAllowTokens))
+    return orRead(
+      readExpr, 
+      () => { 
+        consumeSpace()
+        return readMathBlockStatement()
+      }, 
+      () => {
+        consumeSpace()
+        return readMathDollarStatement()
+      }, 
+      () => readUnknown(unAllowTokens)
+    )
   }
 
   const readExpr = () => {
-    return orRead(readFracExpr, readArrowExpr, readCondenseExpr, readFloatExpr, readBondExpr, readEzFracExpr)
+    return orRead(readFracExpr, readArrowExpr, readCondenseExpr, readFloatExpr, readBondExpr, readEzFracExpr, readScriptExpr)
   }
 
   /**
@@ -252,14 +292,17 @@ const parse = (input: string) => {
     }
   
     consumeSpace()
+
     readToken('command', '\\frac')
-
-    consumeSpace()
-    node.children.push(orRead(readChar, readBlockStatement))
-
-    consumeSpace()
-    node.children.push(orRead(readChar, readBlockStatement))
-
+    try {
+      consumeSpace()
+      node.children.push(orRead(readChar, readBlockStatement))
+      consumeSpace()
+      node.children.push(orRead(readChar, readBlockStatement))
+    } catch (e) {
+      castError('not valid \\frac command')
+    }
+    
     return node
   }
 
@@ -317,32 +360,34 @@ const parse = (input: string) => {
       }
       consumeSpace()
       readToken('command', '\\bond')
-      readToken('parentheses', '{')
-
-      const genReadings = (strs: string[]) => {
-        return strs.map(str => () => readString(str))
+      try {
+        readToken('parentheses', '{')
+        const genReadings = (strs: string[]) => {
+          return strs.map(str => () => readString(str))
+        }
+        const value = orRead(...genReadings([
+          '....',
+          '...',
+          '-~-',
+          '~--',
+          '->',
+          '<-',
+          '~=',
+          '~-',
+          '~',
+          '3',
+          '2',
+          '1',
+          '#',
+          '=',
+          '-'
+        ]))
+        node.value = value
+        readToken('parentheses', '}')
+      } catch (e) {
+        castError('invalid \\bond command')
       }
-
-      const value = orRead(...genReadings([
-        '....',
-        '...',
-        '-~-',
-        '~--',
-        '->',
-        '<-',
-        '~=',
-        '~-',
-        '~',
-        '3',
-        '2',
-        '1',
-        '#',
-        '=',
-        '-'
-      ]))
-
-      node.value = value
-      readToken('parentheses', '}')
+      
       return node
     }
 
@@ -381,9 +426,76 @@ const parse = (input: string) => {
     castError()
   }
 
+  const readScriptExpr = () => {
+    return orRead(readSubsupscriptExpr, readSupsubscriptExpr, readSubscriptExpr, readSupscriptExpr)
+  }
+
+  const readSubsupscriptExpr = () => {
+    const node: any = {
+      type: 'subsupscript',
+      children: []
+    }
+    node.children.push(...readSubscriptExpr().children)
+    node.children.push(...readSupscriptExpr().children)
+    
+    return node
+  }
+
+  const readSupsubscriptExpr = () => {
+    const node: any = {
+      type: 'supsubscript',
+      children: []
+    }
+    node.children.push(...readSupscriptExpr().children)
+    node.children.push(...readSubscriptExpr().children)
+    
+    return node
+  }
+
+  const readSubscriptExpr = () => {
+    const node: any = {
+      type: 'subscript',
+      children: []
+    }
+
+    consumeSpace()
+    readToken('subscript', '_')
+
+    let children = orRead(() => multiRead(readNum, false), readChar, readMathBlockStatement, () => readToken('space'))
+    if (children instanceof Array) {
+      children = children.join('')
+    }
+
+    node.children.push(children)
+
+    return node
+  }
+
+  const readSupscriptExpr = () => {
+    const node: any = {
+      type: 'supscript',
+      children: []
+    }
+
+    consumeSpace()
+    readToken('supscript', '^')
+
+    let children = orRead(() => multiRead(readNum, false), readChar, readMathBlockStatement, () => readToken('space'))
+    if (children instanceof Array) {
+      children = children.join('')
+    }
+
+    node.children.push(children)
+
+    return node
+  }
+
   const readToken = (type: string, match?: string) => {
     const token = read()
-    if (!token || token.type !== type || (match && token.match !== match)) {
+    if (token === null || token.type !== type || (match && token.match !== match)) {
+      if (token !== null) {
+        index--
+      }
       castError()
     }
     return token?.match
@@ -404,11 +516,11 @@ const parse = (input: string) => {
   }
 
   const readNum = () => {
-    const token = read()
-    if (!token || token.type !== 'char' || [0,1,2,3,4,5,6,7,8,9].indexOf(parseInt(token.match)) < 0) {
+    const str = readToken('char')
+    if ([0,1,2,3,4,5,6,7,8,9].indexOf(parseInt(str as any)) < 0) {
       castError()
     }
-    return token?.match
+    return str
   }
 
   // 读取{...}
@@ -450,7 +562,6 @@ const parse = (input: string) => {
       statements: []
     }
 
-    consumeSpace()
     readToken('parentheses', '{')
     consumeSpace()
 
@@ -479,7 +590,6 @@ const parse = (input: string) => {
       statements: []
     }
 
-    consumeSpace()
     readChar('$')
     consumeSpace()
 
@@ -493,5 +603,3 @@ const parse = (input: string) => {
 
   return readGrammar()
 }
-
-console.log(JSON.stringify(parse('\\frac12 \\ce{1213\\frac12}->[1][2]')))
