@@ -76,11 +76,12 @@ export const tokenRuleList: TokenRuleListType = [
  * ChemArrowExpr = 'token-arrow' , 2 * [ChemBracketStatement]
  * 
  * 化学的上下标表达式
- * ChemScriptExpr =  chemSubsupscriptExpr | chemSupsubscriptExpr | chemSubscriptExpr | chemSupscriptExpr
+ * ChemScriptExpr =  chemSubsupscriptExpr | chemSupsubscriptExpr | chemSubscriptExpr | chemSupscriptExpr ｜ chemEzScriptExpr
  * chemSubscriptExpr = '_', ({'token-num'} | 'token-space' | 'token-char' | MathBlockStatement)
  * chemSupscriptExpr = '^', ({'token-num'} | 'token-space' | 'token-char' | MathBlockStatement)
  * chemSubsupscriptExpr = chemSubscriptExpr, chemSupscriptExpr
  * chemSupsubscriptExpr = chemSupscriptExpr, chemSubscriptExpr
+ * chemEzScriptExpr = 'token-alpha', ({'token-num'} | {'token-+'} | {'token--'}), [{'token-num'} | {'token-+'} | {'token--'}]
  * 
  * 化学的沉淀符号
  * ChemCondenseExpr = 'token-space', 'v', 'token-space'
@@ -92,7 +93,7 @@ export const tokenRuleList: TokenRuleListType = [
  * chemBondExpr = '#' ｜ '\bond', '{', '-' | '=' | '#' | '1' | '2' | '3' | '~' | '~-' | '~--' | '~=' | '-~-' | '...' | '....' | '->' | '<-','}'
  * 
  * 简易化学分式
- * chemEzfracExpr = {'token-char-num'}, '/', {'token-char-num'}
+ * chemEzfracExpr = {'token-num'}, '/', {'token-num'}
  * 
  * 化学的未知文本
  * chemUnknown = 无法匹配 ChemExpr | MathBlockStatement ｜ MathDollarStatement 的其他命令
@@ -162,6 +163,7 @@ const parse = (input: string) => {
         node = reading()
         break
       } catch (e) {
+        // 监测到打断回溯的错误，直接抛错
         if (e.name === 'dead') {
           throw e
         }
@@ -181,9 +183,9 @@ const parse = (input: string) => {
    * 如果读取失败，需要重置index
    */
   const existRead = (reading: Function) => {
+    console.log(333)
     let token: any = null
     const currentIndex = index;
-
     try {
       token = reading()
     } catch (e) {
@@ -428,7 +430,7 @@ const parse = (input: string) => {
   }
 
   const readScriptExpr = () => {
-    return orRead(readSubsupscriptExpr, readSupsubscriptExpr, readSubscriptExpr, readSupscriptExpr)
+    return orRead(readSubsupscriptExpr, readSupsubscriptExpr, readSubscriptExpr, readSupscriptExpr, readEzScriptExpr)
   }
 
   const readSubsupscriptExpr = () => {
@@ -491,9 +493,38 @@ const parse = (input: string) => {
     return node
   }
 
+  // chemEzScriptExpr = 'token-alpha', ({'token-num'} | {'token-+'} | {'token--'}), [{'token-num'} | {'token-+'} | {'token--'}]
+  const readEzScriptExpr = () => {
+    const node: any = {
+      type: 'ezScript',
+      children: []
+    }
+
+    consumeSpace()
+    node.children.push(readAlphabet())
+
+    const child1 = orRead(
+      () => multiRead(readNum, false), 
+      () => multiRead(() => readToken('char', '+'), false),
+      () => multiRead(() => readToken('char', '-'), false)
+    ).join('')
+    node.children.push(child1)
+
+    const child2 = existRead(() => orRead(
+      () => multiRead(readNum, false), 
+      () => multiRead(() => readToken('char', '+'), false),
+      () => multiRead(() => readToken('char', '-'), false)
+    ))
+    child2 && node.children.push(child2.join(''))
+
+    return node
+  }
+
+  // 表达式式的token读取统一的收拢入口
   const readToken = (type: string, match?: string) => {
     const token = read()
     if (token === null || token.type !== type || (match && token.match !== match)) {
+      // token读取错误需要将未知回退
       if (token !== null) {
         index--
       }
@@ -517,11 +548,19 @@ const parse = (input: string) => {
   }
 
   const readNum = () => {
-    const str = readToken('char')
-    if ([0,1,2,3,4,5,6,7,8,9].indexOf(parseInt(str as any)) < 0) {
+    const char = readToken('char')
+    if (!/^[0-9]$/.test(char as string)) {
       castError()
     }
-    return str
+    return char
+  }
+
+  const readAlphabet = () => {
+    const char = readToken('char')
+    if (!/^[a-zA-Z]$/.test(char as string)) {
+      castError()
+    }
+    return char
   }
 
   // 读取{...}
