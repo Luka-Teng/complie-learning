@@ -50,6 +50,7 @@ export const tokenRuleList: TokenRuleListType = [
 
 /**
  * 化学latex的语法规则
+ * 可参考扩展巴科斯范式： https://zh.wikipedia.org/zh-sg/%E6%89%A9%E5%B1%95%E5%B7%B4%E7%A7%91%E6%96%AF%E8%8C%83%E5%BC%8F
  * 
  * 符号含义
  * []: 一次或零次
@@ -74,7 +75,7 @@ export const tokenRuleList: TokenRuleListType = [
  * 化学的箭头表达式
  * ChemArrowExpr = 'token-arrow' , 2 * [ChemBracketStatement]
  * 
- * 化学的上下标表达式 todo...
+ * 化学的上下标表达式
  * ChemScriptExpr =  chemSubsupscriptExpr | chemSupsubscriptExpr | chemSubscriptExpr | chemSupscriptExpr
  * chemSubscriptExpr = '_', ({'token-num'} | 'token-space' | 'token-char' | MathBlockStatement)
  * chemSupscriptExpr = '^', ({'token-num'} | 'token-space' | 'token-char' | MathBlockStatement)
