@@ -603,3 +603,5 @@ const parse = (input: string) => {
 
   return readGrammar()
 }
+
+export default parse
