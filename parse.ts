@@ -96,7 +96,7 @@ export const tokenRuleList: TokenRuleListType = [
  * chemEzfracExpr = {'token-num'}, '/', {'token-num'}
  * 
  * 化学的未知文本
- * chemUnknown = 无法匹配 ChemExpr | MathBlockStatement ｜ MathDollarStatement 的其他命令
+ * chemUnknown = {'allTokens' -(ChemExpr | MathBlockStatement | MathDollarStatement)}
  *
  * 数学相关语法
  * MathBlockStatement = '{' , MathStatements , '}'
