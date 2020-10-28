@@ -492,7 +492,6 @@ const parse = (input: string) => {
     return node
   }
 
-  // chemEzScriptExpr = 'token-alpha', ({'token-num'} | {'token-+'} | {'token--'}), [{'token-num'} | {'token-+'} | {'token--'}]
   const readEzScriptExpr = () => {
     const node: any = {
       type: 'ezScript',
