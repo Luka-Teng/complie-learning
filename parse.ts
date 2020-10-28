@@ -183,7 +183,6 @@ const parse = (input: string) => {
    * 如果读取失败，需要重置index
    */
   const existRead = (reading: Function) => {
-    console.log(333)
     let token: any = null
     const currentIndex = index;
     try {
