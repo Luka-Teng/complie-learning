@@ -160,7 +160,7 @@ const syntaxParser = (input: string) => {
     readToken('^')
     const node = {
       type: 'root',
-      children: multiRead(readOrExpr)
+      children: multiRead(readAssignExpr)
     }
 
     const end = readToken('$')
@@ -208,6 +208,18 @@ const syntaxParser = (input: string) => {
 
     return first
   }
+
+  /**
+   * 读取赋值表达式
+   * assignExpr = andExpr, {['=', andExpr]}
+   */
+  const readAssignExpr = () => readAssociativeExpr(
+    () => readToken('equal'),
+    readOrExpr,
+    'assign',
+    'left',
+    'invalid assignExpr'
+  )
 
   /**
    * 读取or表达式
@@ -261,4 +273,4 @@ const syntaxParser = (input: string) => {
   return readRoot()
 }
 
-console.log(JSON.stringify(syntaxParser('11 * 22 || aa + 22 && 22')))
+console.log(JSON.stringify(syntaxParser('c = 11 * 22 || aa + 22 && 22')))
