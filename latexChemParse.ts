@@ -1,3 +1,6 @@
+/**
+ * 化学latex语法解析工具
+ */
 import { tokenize, TokenRuleListType } from './tokenize'
 
 /**
@@ -114,10 +117,7 @@ const parse = (input: string) => {
   const tokensLength = tokens.length
   let index = 0
   let longestIndex = 0
-
-  /**
-   * @param { boolean } allowBacktracking 表示发生错误是否允许回溯
-   */
+  
   const castError = (msg = '') => {
     const newMsg = msg !== '' ? `parsing error in ${tokens[index].end}: ${msg}` : `parsing error: position ${tokens[longestIndex].start}`
     const error = new Error(newMsg)

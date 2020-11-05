@@ -50,7 +50,7 @@ export const tokenize = (input: string, ruleList: TokenRuleListType) => {
   // 初始token
   tokens.push({
     type: '^',
-    match: '',
+    match: '^',
     start: 0,
     end: 0
   })
@@ -75,7 +75,7 @@ export const tokenize = (input: string, ruleList: TokenRuleListType) => {
   // 结尾token
   tokens.push({
     type: '$',
-    match: '',
+    match: '$',
     start: input.length,
     end: input.length
   })
