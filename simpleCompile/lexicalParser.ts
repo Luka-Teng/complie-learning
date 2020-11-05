@@ -1,9 +1,13 @@
 import { TokenRuleListType, tokenize } from '../tokenize'
 
+/**
+ * 词法解析工具
+ */
+
 const tokenRuleList: TokenRuleListType = [
   {
-    type: 'const',
-    match: /^const/
+    type: 'let',
+    match: /^let/
   },
   {
     type: 'identifier',

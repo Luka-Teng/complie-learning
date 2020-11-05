@@ -1,9 +1,20 @@
 import lexicalParser from './lexicalParser'
 
 /**
- * 支持的语法文法
+ * 语法解析工具
+ * 
+ * 文法:
  * root = {[statement]}
- * statement = addExpr
+ * statement = letDeclaration | assignStatement
+ * 
+ * 声明语句
+ * letDeclaration = 'let', 'identifier', ['=', assignStatement]
+ * 
+ * 表达式语句
+ * exprStatement = orExpr
+ * 
+ * 赋值语句, 右结合性
+ * assignStatement = 'identifier', assignStatement | exprStatement
  * 
  * 由于乘法表达式的优先级高于加法，所以乘法表达式为加法表达式的子表达式
  * addExpr = addExpr, '+', multiExpr | multiExpr
@@ -24,6 +35,7 @@ import lexicalParser from './lexicalParser'
  */
 
 /**
+ * 这种写法不如抛错拦截来的舒服，需要调整, 缺点在于要写很多if来判断错误
  * 规定产生回溯的表达式返回null
  * 产生错误的表达式直接抛出错误
  */
@@ -115,12 +127,15 @@ const syntaxParser = (input: string) => {
    */
   const multiRead = (reading: Function, allowEmpty = true) => {
     const statements: any[] = []
+    let currentIndex = index
 
     while (index < tokens.length) {
       const node = reading()
       if (node) {
+        currentIndex = index
         statements.push(node)
       } else {
+        index = currentIndex
         break
       }
     }
@@ -134,6 +149,7 @@ const syntaxParser = (input: string) => {
 
   /**
    * 回溯多个表达式
+   * 对应表达式expr1 = expr2 | expr3
    */
   const orRead = (...readings: Function[]) => {
     let node: any = null
@@ -153,14 +169,30 @@ const syntaxParser = (input: string) => {
   }
 
   /**
+   * 是否存在表达式
+   * 对应表达式expr1 = [expr2]
+   */
+  const existRead = (reading: Function) => {
+    const currentIndex = index
+    const node = reading()
+
+    if (node) {
+      return node
+    }
+
+    index = currentIndex
+    return null
+  }
+
+  /**
    * 读取根节点
-   * root = {[addExpr]}
+   * root = {[letDeclaration | assignStatement ]}
    */
   const readRoot = () => {
     readToken('^')
     const node = {
       type: 'root',
-      children: multiRead(readAssignExpr)
+      children: multiRead(() => orRead(readLetDeclaration, readAssignStatement))
     }
 
     const end = readToken('$')
@@ -202,7 +234,13 @@ const syntaxParser = (input: string) => {
       }) as any[]
 
       if (nextNodes.length > 0) {
-        return (associativity === 'left' ? [first, ...nextNodes] : [first, ...nextNodes].reverse()).reduce((firstNode, secondNode) => createNode(nodeName, [firstNode, secondNode]))
+        if (associativity === 'left') {
+          return [first, ...nextNodes].reduce((firstNode, secondNode) => createNode(nodeName, [firstNode, secondNode]))
+        }
+
+        if (associativity === 'right') {
+          return [first, ...nextNodes].reverse().reduce((firstNode, secondNode) => createNode(nodeName, [secondNode, firstNode]))
+        }
       }
     }
 
@@ -210,16 +248,64 @@ const syntaxParser = (input: string) => {
   }
 
   /**
-   * 读取赋值表达式
-   * assignExpr = andExpr, {['=', andExpr]}
+   * 声明语句
+   * letDeclaration = 'let', 'identifier', ['=', assignStatement]
    */
-  const readAssignExpr = () => readAssociativeExpr(
-    () => readToken('equal'),
-    readOrExpr,
-    'assign',
-    'left',
-    'invalid assignExpr'
-  )
+  const readLetDeclaration = () => {
+    if (readToken('let')) {
+      const id = readToken('identifier')
+      if (id) {
+        const assignNode = existRead(() => {
+          if (readToken('equal')) {
+            const assignNode = readAssignStatement()
+            if (assignNode) {
+              return assignNode
+            }
+            castError('invalid letDeclaration')
+          }
+          return null
+        })
+
+        return {
+          type: 'letDeclaration',
+          children: assignNode ? [id, assignNode] : [id]
+        }
+      }
+      castError('invalid letDeclaration')
+    }
+
+    return null
+  }
+
+  /**
+   * 读取赋值表达式, 右结合性
+   * assignStatement = 'identifier', '=', assignStatement | exprStatement
+   */
+  const readAssignStatement = () => {
+    return orRead(() => {
+      const id = readIdentifier()
+
+      if (id) {
+        const equal = readToken('equal')
+        if (equal) {
+          const node = readAssignStatement()
+
+          if (node) {
+            return createNode('assign', [id, node])
+          }
+
+          castError('invalid assignExpr')
+        }
+      }
+      
+      return null
+    }, readExprStatement)
+  }
+
+  // 表达式语句
+  const readExprStatement = () => {
+    return readOrExpr()
+  }
 
   /**
    * 读取or表达式
@@ -273,4 +359,4 @@ const syntaxParser = (input: string) => {
   return readRoot()
 }
 
-console.log(JSON.stringify(syntaxParser('c = 11 * 22 || aa + 22 && 22')))
+console.log(JSON.stringify(syntaxParser('let a = aaa')))
