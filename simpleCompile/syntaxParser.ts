@@ -16,13 +16,12 @@ import lexicalParser from './lexicalParser'
  * 赋值语句, 右结合性
  * assignStatement = 'identifier', assignStatement | exprStatement
  * 
- * 由于乘法表达式的优先级高于加法，所以乘法表达式为加法表达式的子表达式
- * addExpr = addExpr, '+', multiExpr | multiExpr
- * multiExpr = multiExpr, '*', number | number
+ * addExpr = addExpr, '+', multiExpr | addExpr, '-', multiExpr | multiExpr
+ * multiExpr = multiExpr, '*', number | multiExpr, '/', number | number
  * 
  * 由于上面表达式会产生左递归问题，所以可以使用循环迭代代替左递归
- * addExpr = multiExpr, {['+', multiExpr]}
- * multiExpr = number, {['*', number]}
+ * addExpr = multiExpr, {['+', multiExpr | '-', multiExpr]}
+ * multiExpr = number, {['*', number | '/', number]}
  * 
  * or表达式
  * orExpr = orExpr, '||', andExpr | andExpr
@@ -204,43 +203,33 @@ const syntaxParser = (input: string) => {
   }
 
   /**
-   * 左结合性公式
-   * 读取expr = expr, {['token', expr]}形式
-   * @param {'left' | 'right'} associativity 结合性
+   * 解析左结合的二元表达式 expr1 operator expr2
+   * @param {Function} operator 操作符
    */
-  const readAssociativeExpr = (
-    symbol: Function,
-    expr: Function,
-    nodeName: string,
-    associativity: 'left' | 'right' = 'left',
-    errorMsg?: string,
+  const readBinaryExpr = (
+    expr1: Function,
+    operator: Function,
+    expr2: Function,
   ) => {
-    const first = expr()
+    const first = expr1()
 
     if (first) {
-      // 读取{['token', expr]}形式
       const nextNodes = multiRead(() => {
-        const _symbol = symbol()
+        const _operator = operator()
 
-        if (_symbol) {
-          const node = expr()
+        if (_operator) {
+          const node = expr2()
           if (!node) {
-            castError(errorMsg)
+            castError(`invalid binaryExpr ${_operator}`)
           }
-          return node
+          return [_operator, node]
         }
 
         return null
       }) as any[]
 
       if (nextNodes.length > 0) {
-        if (associativity === 'left') {
-          return [first, ...nextNodes].reduce((firstNode, secondNode) => createNode(nodeName, [firstNode, secondNode]))
-        }
-
-        if (associativity === 'right') {
-          return [first, ...nextNodes].reverse().reduce((firstNode, secondNode) => createNode(nodeName, [secondNode, firstNode]))
-        }
+        return [first, ...nextNodes].reduce((firstNode, secondNode) => createNode('binaryExpr', [secondNode[0], firstNode, secondNode[1]]))
       }
     }
 
@@ -268,7 +257,7 @@ const syntaxParser = (input: string) => {
 
         return {
           type: 'letDeclaration',
-          children: assignNode ? [id, assignNode] : [id]
+          children: assignNode ? [createNode('identifier', id), assignNode] : [id]
         }
       }
       castError('invalid letDeclaration')
@@ -311,52 +300,44 @@ const syntaxParser = (input: string) => {
    * 读取or表达式
    * andExpr = addExpr, {['&&', addExpr]}
    */
-  const readOrExpr = () => readAssociativeExpr(
-    () => readToken('or'),
+  const readOrExpr = () => readBinaryExpr(
     readAndExpr,
-    'or',
-    'left',
-    'invalid orExpr'
+    () => readToken('or'),
+    readAndExpr
   )
 
   /**
    * 读取and表达式
    * andExpr = addExpr, {['&&', addExpr]}
    */
-  const readAndExpr = () => readAssociativeExpr(
-    () => readToken('and'),
+  const readAndExpr = () => readBinaryExpr(
     readAddExpr,
-    'and',
-    'left',
-    'invalid andExpr'
+    () => readToken('and'),
+    readAddExpr
   )
 
   /**
    * 读取加法表达式
-   * addExpr = multiExpr, {['+' multiExpr]}
+   * addExpr = multiExpr, {[('+' | '-)', multiExpr]}
    * 这边为了保证左结合性，需要手动迭代去生成节点
    */
-  const readAddExpr = () => readAssociativeExpr(
-    () => readToken('operator', '+'),
+  const readAddExpr = () => readBinaryExpr(
     readMultiExpr,
-    'add',
-    'left',
-    'invalid addExpr'
+    () => orRead(() => readToken('operator', '+'), () => readToken('operator', '-')),
+    readMultiExpr
   )
 
   /**
    * 读取乘法表达式
-   * multiExpr = number, {['*', number]}
+   * multiExpr = number, {['*', number | '/', number]}
    */
-  const readMultiExpr = () => readAssociativeExpr(
-    () => readToken('operator', '*'),
+  const readMultiExpr = () => readBinaryExpr(
     () => orRead(readNumber, readIdentifier),
-    'multi',
-    'left',
-    'invalid multiExpr'
+    () => orRead(() => readToken('operator', '*'), () => readToken('operator', '/')),
+    () => orRead(readNumber, readIdentifier)
   )
 
   return readRoot()
 }
 
-console.log(JSON.stringify(syntaxParser('let a = aaa')))
+console.log(JSON.stringify(syntaxParser('let a = aaa + 2 + 4 * 3')))
