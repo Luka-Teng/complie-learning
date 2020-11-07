@@ -1,0 +1,23 @@
+{
+  "name": "compile",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Luka-Teng/latex-paser.git"
+  },
+  "author": "tengwei",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Luka-Teng/latex-paser/issues"
+  },
+  "homepage": "https://github.com/Luka-Teng/latex-paser#readme",
+  "devDependencies": {
+    "@types/node": "^14.14.0",
+    "chalk": "^4.1.0"
+  }
+}

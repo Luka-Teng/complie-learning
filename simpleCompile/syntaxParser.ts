@@ -280,10 +280,10 @@ const syntaxParser = (input: string) => {
           const node = readAssignStatement()
 
           if (node) {
-            return createNode('assign', [id, node])
+            return createNode('assignStatement', [id, node])
           }
 
-          castError('invalid assignExpr')
+          castError('invalid assignStatement')
         }
       }
       
@@ -340,4 +340,4 @@ const syntaxParser = (input: string) => {
   return readRoot()
 }
 
-console.log(JSON.stringify(syntaxParser('let a = aaa + 2 + 4 * 3')))
+export default syntaxParser
