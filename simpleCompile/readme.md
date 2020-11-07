@@ -1,5 +1,5 @@
 ### 如何运行
-`ts-node -O '{"module":"commonjs"}' run.ts`
+`ts-node run.ts`
 
 ### 目前支持语法
 
