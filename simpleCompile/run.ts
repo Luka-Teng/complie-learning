@@ -2,7 +2,7 @@ import * as chalk from 'chalk'
 import * as readline from 'readline'
 import * as process from 'process'
 import syntaxParser from './syntaxParser'
-import Runtime from './runtime'
+import Runtime from './runtime/runtime'
 
 // 运行代码
 const run = () => {

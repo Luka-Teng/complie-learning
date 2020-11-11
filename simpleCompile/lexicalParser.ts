@@ -64,6 +64,10 @@ const tokenRuleList: TokenRuleListType = [
     }
   },
   {
+    type: 'parentheses',
+    match: /^(\{|\})/
+  },
+  {
     type: 'number',
     match: /^[0-9]+/
   },

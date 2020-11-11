@@ -3,15 +3,15 @@
  * 为ast提供运行环境
  */
 import * as chalk from 'chalk'
+import Frame from './frame'
 
 // 运行时工具
 class Runtime {
   // 变量定义
-  private variables: Record<string, any> = {}
+  private stacks: Frame[] = [new Frame()]
 
-  //判断变量是否定义过
-  private isDefined = (varName: string) => {
-    return this.variables.hasOwnProperty(varName)
+  private get currentFrame () {
+    return this.stacks[this.stacks.length - 1]
   }
 
   // 解析ast
@@ -36,35 +36,42 @@ class Runtime {
       // identifier类型需要判断变量是否存在，后返回
       case 'identifier': {
         const id = node.children
-        if (this.isDefined(id)) {
-          return this.variables[id]
+        if (this.currentFrame?.hasScopedKey(id)) {
+          return this.currentFrame.getScopedValue(id)
         }
         throw new Error(`variable ${id} has not defined`)
       }
 
       case 'letDeclaration': {
         const letName = node.children[0].children
-
         // let不能重复声明
-        if (this.isDefined(letName)) {
+        if (this.currentFrame?.hasOwnKey(letName)) {
           throw new Error(`variable ${letName} has been defined`)
         }
         
         const value = node.children[1] ? this.evaluate(node.children[1]) : undefined
-        this.variables[letName] = value
+        this.currentFrame?.setOwnValue(letName, value)
         return value
       }
 
       case 'assignStatement': {
         const id = node.children[0].children
 
-        if (!this.isDefined(id)) {
+        if (!this.currentFrame?.hasScopedKey(id)) {
           throw new Error(`variable ${id} has not defined`)
         }
 
         const value = this.evaluate(node.children[1])
-        this.variables[id] = value
+        this.currentFrame?.setScopedValue(id, value)
         return value
+      }
+
+      case 'blockStatement': {
+        // 块级作用域
+        this.stacks.push(new Frame(this.currentFrame))
+        const result = node.children.map(this.evaluate)
+        this.stacks.pop()
+        return result[result.length - 1]
       }
 
       case 'binaryExpr': {

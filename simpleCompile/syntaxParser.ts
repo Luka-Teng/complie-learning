@@ -5,7 +5,10 @@ import lexicalParser from './lexicalParser'
  * 
  * 文法:
  * root = {[statement]}
- * statement = letDeclaration | assignStatement
+ * statement = letDeclaration | assignStatement | blockStatement
+ * 
+ * 块语句
+ * blockStatement = '{', {[statement]} ,'}'
  * 
  * 声明语句
  * letDeclaration = 'let', 'identifier', ['=', assignStatement]
@@ -31,6 +34,7 @@ import lexicalParser from './lexicalParser'
  * and表达式
  * andExpr = andExpr, '&&', addExpr | addExpr
  * andExpr = addExpr, {['||', addExpr]}
+ * 
  */
 
 /**
@@ -191,7 +195,7 @@ const syntaxParser = (input: string) => {
     readToken('^')
     const node = {
       type: 'root',
-      children: multiRead(() => orRead(readLetDeclaration, readAssignStatement))
+      children: multiRead(readStatement)
     }
 
     const end = readToken('$')
@@ -200,6 +204,10 @@ const syntaxParser = (input: string) => {
     }
 
     return node
+  }
+
+  const readStatement = () => {
+    return orRead(readLetDeclaration, readAssignStatement, readBlockStatement)
   }
 
   /**
@@ -298,7 +306,7 @@ const syntaxParser = (input: string) => {
 
   /**
    * 读取or表达式
-   * andExpr = addExpr, {['&&', addExpr]}
+   * andExpr = andExpr, {['&&', andExpr]}
    */
   const readOrExpr = () => readBinaryExpr(
     readAndExpr,
@@ -336,6 +344,23 @@ const syntaxParser = (input: string) => {
     () => orRead(() => readToken('operator', '*'), () => readToken('operator', '/')),
     () => orRead(readNumber, readIdentifier)
   )
+
+  /**
+   * 读取块语句
+   * blockStatement = '{', {[statement]} ,'}'
+   */
+  const readBlockStatement = () => {
+    let node: any = null
+    if (readToken('parentheses', '{')) {
+      node = createNode('blockStatement', multiRead(readStatement))
+      if (readToken('parentheses', '}')) {
+        return node
+      }
+      castError(`invalid blockStatement`)
+    }
+
+    return node
+  }
 
   return readRoot()
 }
