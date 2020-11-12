@@ -74,6 +74,16 @@ class Runtime {
         return result[result.length - 1]
       }
 
+      case 'ifStatement': {
+        const ifValue = this.evaluate(node.children[0])
+
+        if (ifValue) {
+          return this.evaluate(node.children[1])
+        }
+
+        return undefined
+      }
+
       case 'binaryExpr': {
         const [operator, child1, child2] = node.children
 
@@ -99,6 +109,14 @@ class Runtime {
 
         if (operator === '&&') {
           return this.evaluate(child1) && this.evaluate(child2)
+        }
+
+        if (operator === '===') {
+          return this.evaluate(child1) === this.evaluate(child2)
+        }
+
+        if (operator === '!==') {
+          return this.evaluate(child1) !== this.evaluate(child2)
         }
       }
     }

@@ -5,10 +5,13 @@ import lexicalParser from './lexicalParser'
  * 
  * 文法:
  * root = {[statement]}
- * statement = letDeclaration | assignStatement | blockStatement
+ * statement = letDeclaration | assignStatement | ifStatement | blockStatement
  * 
  * 块语句
  * blockStatement = '{', {[statement]} ,'}'
+ * 
+ * if语句
+ * ifStatement = 'if', '(', assignStatement, ')', blockStatement
  * 
  * 声明语句
  * letDeclaration = 'let', 'identifier', ['=', assignStatement]
@@ -17,7 +20,7 @@ import lexicalParser from './lexicalParser'
  * exprStatement = orExpr
  * 
  * 赋值语句, 右结合性
- * assignStatement = 'identifier', assignStatement | exprStatement
+ * assignStatement = 'identifier', '=', assignStatement | exprStatement
  * 
  * addExpr = addExpr, '+', multiExpr | addExpr, '-', multiExpr | multiExpr
  * multiExpr = multiExpr, '*', number | multiExpr, '/', number | number
@@ -28,13 +31,14 @@ import lexicalParser from './lexicalParser'
  * 
  * or表达式
  * orExpr = orExpr, '||', andExpr | andExpr
- * =>
  * orExpr = andExpr, {['||', andExpr]}
  * 
  * and表达式
- * andExpr = andExpr, '&&', addExpr | addExpr
- * andExpr = addExpr, {['||', addExpr]}
+ * andExpr = andExpr, '&&', equalExpr | equalExpr
+ * andExpr = equalExpr, {['||', equalExpr]}
  * 
+ * ===表达式
+ * equalExpr = addExpr, {['===', addExpr | '!==', addExpr]}
  */
 
 /**
@@ -207,7 +211,7 @@ const syntaxParser = (input: string) => {
   }
 
   const readStatement = () => {
-    return orRead(readLetDeclaration, readAssignStatement, readBlockStatement)
+    return orRead(readLetDeclaration, readAssignStatement, readIfStatement, readBlockStatement)
   }
 
   /**
@@ -253,7 +257,7 @@ const syntaxParser = (input: string) => {
       const id = readToken('identifier')
       if (id) {
         const assignNode = existRead(() => {
-          if (readToken('equal')) {
+          if (readToken('assign')) {
             const assignNode = readAssignStatement()
             if (assignNode) {
               return assignNode
@@ -283,8 +287,8 @@ const syntaxParser = (input: string) => {
       const id = readIdentifier()
 
       if (id) {
-        const equal = readToken('equal')
-        if (equal) {
+        const assign = readToken('assign')
+        if (assign) {
           const node = readAssignStatement()
 
           if (node) {
@@ -316,11 +320,21 @@ const syntaxParser = (input: string) => {
 
   /**
    * 读取and表达式
-   * andExpr = addExpr, {['&&', addExpr]}
+   * andExpr = equalExpr, {['&&', equalExpr]}
    */
   const readAndExpr = () => readBinaryExpr(
-    readAddExpr,
+    readEqualExpr,
     () => readToken('and'),
+    readEqualExpr
+  )
+
+  /**
+   * 读取等式表达式
+   * equalExpr = addExpr, {['===', addExpr | '!==', addExpr]}
+   */
+  const readEqualExpr = () => readBinaryExpr(
+    readAddExpr,
+    () => orRead(() => readToken('equal'), () => readToken('unequal')),
     readAddExpr
   )
 
@@ -350,16 +364,36 @@ const syntaxParser = (input: string) => {
    * blockStatement = '{', {[statement]} ,'}'
    */
   const readBlockStatement = () => {
-    let node: any = null
-    if (readToken('parentheses', '{')) {
-      node = createNode('blockStatement', multiRead(readStatement))
-      if (readToken('parentheses', '}')) {
+    if (readToken('braces', '{')) {
+      const node = createNode('blockStatement', multiRead(readStatement))
+      if (readToken('braces', '}')) {
         return node
       }
       castError(`invalid blockStatement`)
     }
 
-    return node
+    return null
+  }
+
+  /**
+   * 读取if语句
+   * ifStatement = 'if', '(', assignStatement, ')', blockStatement
+   * 繁琐语句的情况下，当前的写法及其没有效率，需要改成latex模式
+   */
+  const readIfStatement = () => {
+    if (readToken('if')) {
+      if (readToken('parentheses', '(')) {
+        const assignment = readAssignStatement()
+        if (readToken('parentheses', ')') && assignment) {
+          const blockStatement = readBlockStatement()
+          if ( blockStatement) {
+            return createNode('ifStatement', [assignment, blockStatement])
+          }
+        }
+      }
+      castError('invalid ifStatement')
+    }
+    return null
   }
 
   return readRoot()

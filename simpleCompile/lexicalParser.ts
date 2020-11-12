@@ -10,6 +10,10 @@ const tokenRuleList: TokenRuleListType = [
     match: /^let/
   },
   {
+    type: 'if',
+    match: /^if/
+  },
+  {
     type: 'identifier',
     match: /^[\$_a-zA-Z][\$_a-zA-Z0-9]*/
   },
@@ -64,8 +68,12 @@ const tokenRuleList: TokenRuleListType = [
     }
   },
   {
-    type: 'parentheses',
+    type: 'braces',
     match: /^(\{|\})/
+  },
+  {
+    type: 'parentheses',
+    match: /^(\(|\))/
   },
   {
     type: 'number',
@@ -85,6 +93,14 @@ const tokenRuleList: TokenRuleListType = [
   },
   {
     type: 'equal',
+    match: /^===/
+  },
+  {
+    type: 'unequal',
+    match: /^\!==/
+  },
+  {
+    type: 'assign',
     match: /^=/
   },
   {
