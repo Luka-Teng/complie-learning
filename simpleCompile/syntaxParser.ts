@@ -269,7 +269,7 @@ const syntaxParser = (input: string) => {
 
         return {
           type: 'letDeclaration',
-          children: assignNode ? [createNode('identifier', id), assignNode] : [id]
+          children: assignNode ? [createNode('identifier', id), assignNode] : [createNode('identifier', id)]
         }
       }
       castError('invalid letDeclaration')
