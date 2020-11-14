@@ -43,7 +43,7 @@ class Runtime {
       }
 
       case 'letDeclaration': {
-        const letName = node.children[0].children
+        const letName = node.children[0]
         // let不能重复声明
         if (this.currentFrame?.hasOwnKey(letName)) {
           throw new Error(`variable ${letName} has been defined`)
