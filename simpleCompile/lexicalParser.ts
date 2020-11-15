@@ -7,11 +7,11 @@ import { TokenRuleListType, tokenize } from '../tokenize'
 const tokenRuleList: TokenRuleListType = [
   {
     type: 'let',
-    match: /^let(?=[^a-zA-Z_0-9$])/
+    match: /^let(?=[^a-zA-Z_0-9$]|$)/
   },
   {
     type: 'if',
-    match: /^if(?=[^a-zA-Z_0-9$])/
+    match: /^if(?=[^a-zA-Z_0-9$]|$)/
   },
   {
     type: 'identifier',
