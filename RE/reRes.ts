@@ -40,7 +40,7 @@ const reRes = (input: string) => {
 		
 		// 转义情况
 		if (char === '\\') {
-			const nextChar = peek()
+			const nextChar = peek(1)
 			if (nextChar) {
 				index = index + 2
 				char = char + nextChar
