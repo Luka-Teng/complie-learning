@@ -140,10 +140,60 @@ const re2nfa = (input: string) => {
  * 状态机的运行
  */
 const run = (regex: string, input: string) => {
-	const nfa = re2nfa(regex)
-	console.log(JSON.stringify(nfa))
-}
+	const start = re2nfa(regex)
+	let index = 0
+	let inTheEnd = false
+	
+	const readChar = () => {
+		let char = input[index]
+		
+		// 不含转义情况
+    if (char && char !== '\\') {
+			index++
+    }
+		
+		// 转义情况
+		if (char === '\\') {
+			const nextChar = input[index]
+			if (nextChar) {
+				index = index + 2
+				char = char + nextChar
+			} else {
+				throw new Error('\\不能单独使用')
+			}
+		}
 
-run('\\a', '22')
+		return char || null
+	}
+
+	const transit = (node: TNode) => {
+		if (node.type === 'end') {
+			inTheEnd = true
+			return
+		}
+
+		let currentIndex = index
+		// 回溯
+		node.transitions.forEach(t => {
+			if (inTheEnd) return
+
+			if (t.value === 'epsilon') {
+				transit(t.next)
+				return
+			}
+
+			index = currentIndex
+			const char = readChar()
+			if (char && t.value === char) {
+				transit(t.next)
+			} else {
+				index = currentIndex
+			}
+		})
+	}
+
+	transit(start)
+	return inTheEnd
+}
 
 export default run
