@@ -11,18 +11,18 @@ import reRes from "./reRes";
  * node为状态点
  */
 
-type TNode = {
+export type TNode = {
 	id: number
 	type: 'normal' | 'start' | 'end'
 	transitions: TTransition[]
 }
 
-type TTransition = {
+export type TTransition = {
 	value: string
 	next: TNode
 }
 
-const re2nfa = (input: string) => {
+export const re2nfa = (input: string) => {
 	const reTree = reRes(input)
 
 	// 节点id，随着节点的创建自增
@@ -148,9 +148,9 @@ const run = (regex: string, input: string) => {
 		let char = input[index]
 		
 		// 不含转义情况
-    if (char && char !== '\\') {
-			index++
-    }
+		if (char && char !== '\\') {
+				index++
+		}
 		
 		// 转义情况
 		if (char === '\\') {

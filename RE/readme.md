@@ -9,8 +9,15 @@
 ```
 
 ##### 1. RE-> NFA
-./RE/re2nfa 实现了nfa的转化和运行
+```
+算法：Thomson算法
+./RE/re2nfa 实现了re -> nfa的转化和运行
+```
 
 ##### 2. NFA -> DFA
+```
+算法：子集构造法
+./RE/re2nfa 实现了re -> nfa -> dfa的转化和运行
+```
 
 ##### 3. DFA -> 正则词法解析器
